@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veður í dag</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root { --frost:#e8f4ff; --ice:#c8e6ff; --muted:#7aa8cc; --gold:#f0c060; --aurora1:#00c8a0; }
+
+  /* Grunnhugmyndin: html font-size = 2vmin → allt em stækkar með iframe */
+  html { font-size:2vmin; }
+  body { width:100%; height:100vh; background:#0a1628; overflow:hidden; font-family:'DM Sans',sans-serif; color:#e8f4ff; }
+
+  .aurora {
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse 80% 40% at 20% 0%, rgba(0,200,160,.15) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 30% at 80% 10%, rgba(96,64,224,.12) 0%, transparent 50%),
+      linear-gradient(180deg, #0a1628 0%, #0d1f3c 40%, #0a1628 100%);
+    animation:adrift 12s ease-in-out infinite alternate;
+  }
+  @keyframes adrift {
+    0%   { filter:hue-rotate(0deg) brightness(1); }
+    50%  { filter:hue-rotate(15deg) brightness(1.08); }
+    100% { filter:hue-rotate(-10deg) brightness(.95); }
+  }
+  .stars {
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      radial-gradient(.06em .06em at 10% 15%, rgba(255,255,255,.7) 0%, transparent 100%),
+      radial-gradient(.06em .06em at 25% 8%,  rgba(255,255,255,.5) 0%, transparent 100%),
+      radial-gradient(.06em .06em at 40% 20%, rgba(255,255,255,.6) 0%, transparent 100%),
+      radial-gradient(.06em .06em at 60% 5%,  rgba(255,255,255,.8) 0%, transparent 100%),
+      radial-gradient(.06em .06em at 75% 18%, rgba(255,255,255,.4) 0%, transparent 100%),
+      radial-gradient(.06em .06em at 88% 12%, rgba(255,255,255,.6) 0%, transparent 100%),
+      radial-gradient(.12em .12em at 33% 12%, rgba(255,255,255,.9) 0%, transparent 100%),
+      radial-gradient(.12em .12em at 70% 25%, rgba(255,255,255,.7) 0%, transparent 100%);
+  }
+  .mountains { position:fixed; bottom:0; left:0; right:0; z-index:1; height:22%; }
+  .mountains svg { width:100%; height:100%; }
+
+  /* Aðalútlit: flex dálkur, miðjustillt lóðrétt */
+  .container {
+    position:relative; z-index:10;
+    width:100%; height:100vh;
+    display:flex; flex-direction:column;
+    justify-content:center;
+    padding:2em 3em;
+    gap:1em;
+  }
+
+  /* Efri hluti: hiti + kort hlið við hlið, náin */
+  .top {
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    gap:2.5em;
+  }
+
+  /* Vinstri: hiti */
+  .main-weather {
+    display:flex; flex-direction:column;
+    gap:.25em;
+    flex-shrink:0;
+    opacity:0; animation:fadeup .8s .2s forwards;
+  }
+
+  .location-row { display:flex; align-items:center; gap:.4em; }
+  .location-dot {
+    width:.45em; height:.45em; border-radius:50%; flex-shrink:0;
+    background:var(--aurora1); box-shadow:0 0 .5em var(--aurora1);
+    animation:pulsedot 2s ease-in-out infinite;
+  }
+  @keyframes pulsedot { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4);opacity:.7} }
+  .location-name { font-size:.85em; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); }
+
+  .temp-display { line-height:1; }
+  .temp-number {
+    font-family:'DM Serif Display',serif;
+    font-size:7.5em; line-height:.85;
+    color:var(--frost); text-shadow:0 0 2em rgba(200,230,255,.3); letter-spacing:-.02em;
+  }
+  .temp-unit {
+    font-family:'DM Serif Display',serif; font-size:2.8em;
+    color:var(--muted); vertical-align:super; margin-left:.08em;
+  }
+
+  .condition-row { display:flex; align-items:center; gap:.4em; }
+  .weather-icon { font-size:1.6em; }
+  .condition-text {
+    font-family:'DM Serif Display',serif; font-style:italic;
+    font-size:1.5em; color:var(--ice); line-height:1.2;
+  }
+
+  /* Hægri: 2x2 kort */
+  .details-grid {
+    display:grid; grid-template-columns:1fr 1fr;
+    gap:.5em;
+    flex:1;
+    opacity:0; animation:fadeup .8s .5s forwards;
+  }
+  .detail-card {
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(200,230,255,.12);
+    border-radius:.7em;
+    padding:.55em .8em;
+    display:flex; flex-direction:column; gap:.1em;
+  }
+  .detail-label {
+    font-size:.62em; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:500;
+  }
+  .detail-value {
+    font-family:'DM Serif Display',serif;
+    font-size:2.2em; line-height:1; color:var(--frost);
+  }
+  .detail-unit { font-family:'DM Sans',sans-serif; font-size:.45em; color:var(--muted); font-weight:300; }
+  .detail-sub  { font-size:.6em; color:var(--muted); }
+
+  /* Neðri hluti: klukka + staðahnapparnir */
+  .bottom {
+    display:flex; justify-content:space-between; align-items:flex-end;
+    opacity:0; animation:fadeup .8s .7s forwards;
+  }
+  .datetime { display:flex; flex-direction:column; gap:.1em; }
+  .time-display {
+    font-family:'DM Serif Display',serif; font-size:2.8em; line-height:1;
+    color:var(--gold); text-shadow:0 0 1.2em rgba(240,192,96,.4); letter-spacing:.04em;
+  }
+  .date-display { font-size:.72em; color:var(--muted); letter-spacing:.06em; text-transform:capitalize; }
+
+  .controls { display:flex; flex-direction:column; align-items:flex-end; gap:.4em; }
+  .location-selector { display:flex; gap:.3em; flex-wrap:wrap; justify-content:flex-end; }
+  .loc-btn {
+    background:rgba(255,255,255,.05); border:1px solid rgba(200,230,255,.15);
+    border-radius:2em; color:var(--muted); font-family:'DM Sans',sans-serif;
+    font-size:.62em; letter-spacing:.08em; padding:.28em .8em;
+    cursor:pointer; transition:all .2s; text-transform:uppercase;
+  }
+  .loc-btn:hover { background:rgba(200,230,255,.1); border-color:rgba(200,230,255,.35); color:var(--frost); }
+  .loc-btn.active { border-color:var(--aurora1); color:var(--aurora1); box-shadow:0 0 .6em rgba(0,200,160,.2); }
+  .update-info { font-size:.52em; color:rgba(120,168,204,.4); letter-spacing:.05em; }
+
+  /* Loading */
+  .status-overlay {
+    position:fixed; inset:0; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(10,22,40,.9);
+    flex-direction:column; gap:1em; transition:opacity .5s;
+  }
+  .status-overlay.hidden { opacity:0; pointer-events:none; }
+  .spinner {
+    width:2.2em; height:2.2em;
+    border:.18em solid rgba(200,230,255,.1); border-top-color:var(--aurora1);
+    border-radius:50%; animation:spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .status-text { font-size:.85em; color:var(--muted); letter-spacing:.1em; }
+
+  @keyframes fadeup { from{opacity:0;transform:translateY(.6em)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="stars"></div>
+<div class="mountains">
+  <svg viewBox="0 0 1440 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0,220 L0,160 L80,128 L160,145 L220,80 L280,112 L340,48 L400,88 L460,58 L520,105 L580,32 L640,75 L700,18 L760,68 L820,28 L880,88 L940,42 L1000,92 L1060,52 L1120,98 L1180,60 L1240,115 L1300,72 L1360,122 L1440,90 L1440,220 Z" fill="rgba(8,16,30,.95)"/>
+    <path d="M0,220 L0,198 L120,178 L200,192 L280,155 L360,180 L440,140 L520,165 L600,132 L680,158 L760,125 L840,155 L920,128 L1000,158 L1080,136 L1160,168 L1240,145 L1320,175 L1440,158 L1440,220 Z" fill="rgba(8,16,30,1)"/>
+  </svg>
+</div>
+
+<div class="status-overlay" id="statusOverlay">
+  <div class="spinner"></div>
+  <div class="status-text" id="statusText">Sæki veðurupplýsingar…</div>
+</div>
+
+<div class="container">
+  <div class="top">
+    <!-- Vinstri: hiti og veðurástand -->
+    <div class="main-weather">
+      <div class="location-row">
+        <div class="location-dot"></div>
+        <span class="location-name" id="locationName">Reykjavík</span>
+      </div>
+      <div class="temp-display">
+        <span class="temp-number" id="tempNum">—</span><span class="temp-unit">°C</span>
+      </div>
+      <div class="condition-row">
+        <span class="weather-icon" id="weatherIcon">🌡</span>
+        <span class="condition-text" id="conditionText">Hleð…</span>
+      </div>
+    </div>
+
+    <!-- Hægri: 2x2 upplýsingakort -->
+    <div class="details-grid">
+      <div class="detail-card">
+        <span class="detail-label">Vindhraði</span>
+        <span class="detail-value" id="windSpeed">—<span class="detail-unit"> m/s</span></span>
+        <span class="detail-sub" id="windDir">—</span>
+      </div>
+      <div class="detail-card">
+        <span class="detail-label">Rakastig</span>
+        <span class="detail-value" id="humidity">—<span class="detail-unit"> %</span></span>
+        <span class="detail-sub">Hlutfallslegt rakastig</span>
+      </div>
+      <div class="detail-card">
+        <span class="detail-label">Skynhiti</span>
+        <span class="detail-value" id="feelsLike">—<span class="detail-unit"> °C</span></span>
+        <span class="detail-sub">Vindkæling</span>
+      </div>
+      <div class="detail-card">
+        <span class="detail-label">Úrkoma</span>
+        <span class="detail-value" id="precip">—<span class="detail-unit"> mm</span></span>
+        <span class="detail-sub">Sl. klukkustund</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Neðri hluti: klukka + staðahnapparnir -->
+  <div class="bottom">
+    <div class="datetime">
+      <div class="time-display" id="timeDisplay">—</div>
+      <div class="date-display" id="dateDisplay">—</div>
+    </div>
+    <div class="controls">
+      <div class="location-selector" id="locBtns">
+        <button class="loc-btn active" data-lat="64.1355" data-lon="-21.8954" data-name="Reykjavík">Reykjavík</button>
+        <button class="loc-btn" data-lat="65.6826" data-lon="-18.0921" data-name="Akureyri">Akureyri</button>
+        <button class="loc-btn" data-lat="63.9996" data-lon="-22.5562" data-name="Keflavík">Keflavík</button>
+        <button class="loc-btn" data-lat="64.6328" data-lon="-21.9581" data-name="Borgarnes">Borgarnes</button>
+        <button class="loc-btn" data-lat="64.2539" data-lon="-15.2082" data-name="Höfn">Höfn</button>
+      </div>
+      <div class="update-info" id="updateInfo">Uppfærist sjálfkrafa á 10 mín. fresti</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WMO = {
+  0:  { is:'Tært',                  icon:'☀️' },
+  1:  { is:'Aðallega tært',         icon:'🌤' },
+  2:  { is:'Hlutskýjað',            icon:'⛅️' },
+  3:  { is:'Skýjað',                icon:'☁️' },
+  45: { is:'Þoka',                  icon:'🌫' },
+  48: { is:'Hrímþoka',              icon:'🌫' },
+  51: { is:'Létt súld',             icon:'🌦' },
+  53: { is:'Súld',                  icon:'🌦' },
+  55: { is:'Þung súld',             icon:'🌧' },
+  61: { is:'Létt rigning',          icon:'🌧' },
+  63: { is:'Rigning',               icon:'🌧' },
+  65: { is:'Þung rigning',          icon:'🌧' },
+  71: { is:'Létt snjókoma',         icon:'🌨' },
+  73: { is:'Snjókoma',              icon:'❄️' },
+  75: { is:'Þung snjókoma',         icon:'❄️' },
+  77: { is:'Snjókornaél',           icon:'🌨' },
+  80: { is:'Létar skúrir',          icon:'🌦' },
+  81: { is:'Skúrir',                icon:'🌧' },
+  82: { is:'Þungar skúrir',         icon:'⛈' },
+  85: { is:'Snjóskúrir',            icon:'🌨' },
+  86: { is:'Þungar snjóskúrir',     icon:'❄️' },
+  95: { is:'Þrumuveður',            icon:'⛈' },
+  96: { is:'Þrumuveður m. hagli',   icon:'⛈' },
+  99: { is:'Þrumuveður m. hagli',   icon:'⛈' },
+};
+
+function vindatt(deg) {
+  const a = ['Norðan','Norðaustan','Austan','Suðaustan','Suðan','Suðvestan','Vestan','Norðvestan'];
+  return a[Math.round(deg / 45) % 8] + 'vindur';
+}
+
+function skynhiti(T, v) {
+  const vkm = v * 3.6;
+  if (T <= 10 && vkm >= 4.8)
+    return Math.round(13.12 + 0.6215*T - 11.37*Math.pow(vkm,.16) + 0.3965*T*Math.pow(vkm,.16));
+  return Math.round(T);
+}
+
+let lat=64.1355, lon=-21.8954, statur='Reykjavík';
+
+async function saekjaVedur() {
+  const overlay = document.getElementById('statusOverlay');
+  overlay.classList.remove('hidden');
+  document.getElementById('statusText').textContent = 'Sæki veðurupplýsingar…';
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,weathercode,windspeed_10m,winddirection_10m,relativehumidity_2m,precipitation`
+      + `&wind_speed_unit=ms&timezone=Atlantic/Reykjavik`;
+    const gogn = await (await fetch(url)).json();
+    const c = gogn.current;
+    const wmo = WMO[c.weathercode] || { is:'Óþekkt', icon:'🌡' };
+
+    document.getElementById('tempNum').textContent       = Math.round(c.temperature_2m);
+    document.getElementById('weatherIcon').textContent   = wmo.icon;
+    document.getElementById('conditionText').textContent = wmo.is;
+    document.getElementById('windSpeed').innerHTML       = `${c.windspeed_10m.toFixed(1)}<span class="detail-unit"> m/s</span>`;
+    document.getElementById('windDir').textContent       = vindatt(c.winddirection_10m);
+    document.getElementById('humidity').innerHTML        = `${c.relativehumidity_2m}<span class="detail-unit"> %</span>`;
+    document.getElementById('feelsLike').innerHTML       = `${skynhiti(c.temperature_2m, c.windspeed_10m)}<span class="detail-unit"> °C</span>`;
+    document.getElementById('precip').innerHTML          = `${c.precipitation.toFixed(1)}<span class="detail-unit"> mm</span>`;
+    document.getElementById('locationName').textContent  = statur;
+
+    const nu = new Date();
+    const hh = String(nu.getHours()).padStart(2,'0');
+    const mm = String(nu.getMinutes()).padStart(2,'0');
+    document.getElementById('updateInfo').textContent = `Síðast uppfært: ${hh}:${mm}`;
+    overlay.classList.add('hidden');
+  } catch(e) {
+    document.getElementById('statusText').textContent = 'Gat ekki sótt veðrið. Reyndu aftur.';
+    setTimeout(() => overlay.classList.add('hidden'), 3000);
+  }
+}
+
+const DAGAR   = ['Sunnudagur','Mánudagur','Þriðjudagur','Miðvikudagur','Fimmtudagur','Föstudagur','Laugardagur'];
+const MANADUR = ['janúar','febrúar','mars','apríl','maí','júní','júlí','ágúst','september','október','nóvember','desember'];
+
+function uppfaeraKlukku() {
+  const nu = new Date();
+  const hh = String(nu.getHours()).padStart(2,'0');
+  const mm = String(nu.getMinutes()).padStart(2,'0');
+  document.getElementById('timeDisplay').textContent = `${hh}:${mm}`;
+  document.getElementById('dateDisplay').textContent =
+    `${DAGAR[nu.getDay()]}, ${nu.getDate()}. ${MANADUR[nu.getMonth()]} ${nu.getFullYear()}`;
+}
+
+document.getElementById('locBtns').addEventListener('click', e => {
+  const b = e.target.closest('.loc-btn');
+  if (!b) return;
+  document.querySelectorAll('.loc-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  lat=parseFloat(b.dataset.lat); lon=parseFloat(b.dataset.lon); statur=b.dataset.name;
+  saekjaVedur();
+});
+
+uppfaeraKlukku();
+setInterval(uppfaeraKlukku, 1000);
+saekjaVedur();
+setInterval(saekjaVedur, 600000);
+</script>
+</body>
+</html>
