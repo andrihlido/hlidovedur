@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<title>Klukka</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background:#081220;
+  overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  width:100vw; height:100vh;
+}
+#app {
+  width:1200px; height:1200px;
+  position:relative;
+  transform-origin:center center;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:32px;
+}
+.bg {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,180,140,.1) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 85% 85%, rgba(80,50,220,.09) 0%, transparent 55%),
+    linear-gradient(180deg, #081220 0%, #0c1a32 55%, #081220 100%);
+}
+.dagseting {
+  position:relative; z-index:2;
+  font-family:'DM Sans', sans-serif;
+  font-size:26px; font-weight:300;
+  letter-spacing:4px; text-transform:uppercase;
+  color:#7aa8cc;
+}
+.clock-wrap {
+  position:relative; z-index:2;
+  width:860px; height:860px;
+}
+canvas#klukka {
+  width:860px; height:860px;
+  display:block;
+}
+.legend {
+  position:relative; z-index:2;
+  display:flex; gap:48px;
+  font-size:20px; font-weight:400;
+  color:#7aa8cc; letter-spacing:1px;
+}
+.legend span { display:flex; align-items:center; gap:10px; }
+.dot-hour { width:18px; height:18px; border-radius:50%; background:#f0c060; flex-shrink:0; }
+.dot-min  { width:18px; height:18px; border-radius:50%; background:#e8f4ff; flex-shrink:0; }
+.dot-sec  { width:18px; height:18px; border-radius:50%; background:#00c8a0; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bg"></div>
+  <div class="dagseting" id="dagseting">—</div>
+  <div class="clock-wrap">
+    <canvas id="klukka" width="860" height="860"></canvas>
+  </div>
+  <div class="legend">
+    <span><div class="dot-hour"></div>Klukkustundarvisir</span>
+    <span><div class="dot-min"></div>Mínútuvisir</span>
+    <span><div class="dot-sec"></div>Sekúnduvisir</span>
+  </div>
+</div>
+
+<script>
+function skala() {
+  const s = Math.min(window.innerWidth / 1200, window.innerHeight / 1200);
+  document.getElementById('app').style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', skala);
+skala();
+
+// Íslenskur tími — Atlantic/Reykjavik (UTC+0 allt árið, engin sumartími)
+function islenskurTimi() {
+  const now = new Date();
+  // Reykjavik er alltaf UTC+0
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Atlantic/Reykjavik',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+    hour12: false
+  }).formatToParts(now);
+  const get = t => parseInt(parts.find(p => p.type === t).value);
+  return { h: get('hour') % 24, m: get('minute'), s: get('second') };
+}
+
+function islenskDagur() {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('is-IS', {
+    timeZone: 'Atlantic/Reykjavik',
+    weekday:'long', day:'numeric', month:'long', year:'numeric'
+  });
+  // Fallback ef is-IS virkar ekki
+  try {
+    return fmt.format(now);
+  } catch(e) {
+    const p = new Intl.DateTimeFormat('en-US', {
+      timeZone:'Atlantic/Reykjavik',
+      weekday:'long', day:'numeric', month:'long', year:'numeric'
+    }).formatToParts(now);
+    const DAGAR = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const IS_DAGAR = ['Sunnudagur','Mánudagur','Þriðjudagur','Miðvikudagur','Fimmtudagur','Föstudagur','Laugardagur'];
+    const IS_MAN = {January:'janúar',February:'febrúar',March:'mars',April:'apríl',May:'maí',June:'júní',
+                    July:'júlí',August:'ágúst',September:'september',October:'október',November:'nóvember',December:'desember'};
+    const wd  = p.find(x=>x.type==='weekday').value;
+    const day = p.find(x=>x.type==='day').value;
+    const mon = p.find(x=>x.type==='month').value;
+    const yr  = p.find(x=>x.type==='year').value;
+    return `${IS_DAGAR[DAGAR.indexOf(wd)]}, ${day}. ${IS_MAN[mon]} ${yr}`;
+  }
+}
+
+const DAGAR  = ['Sunnudagur','Mánudagur','Þriðjudagur','Miðvikudagur','Fimmtudagur','Föstudagur','Laugardagur'];
+const MAN    = ['janúar','febrúar','mars','apríl','maí','júní','júlí','ágúst','september','október','nóvember','desember'];
+
+function uppfDag() {
+  const now = new Date();
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone:'Atlantic/Reykjavik',
+    weekday:'long', day:'numeric', month:'long', year:'numeric'
+  }).formatToParts(now);
+  const EN_D = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const EN_M = {January:'janúar',February:'febrúar',March:'mars',April:'apríl',May:'maí',June:'júní',
+                July:'júlí',August:'ágúst',September:'september',October:'október',November:'nóvember',December:'desember'};
+  const wd  = p.find(x=>x.type==='weekday').value;
+  const day = p.find(x=>x.type==='day').value;
+  const mon = p.find(x=>x.type==='month').value;
+  const yr  = p.find(x=>x.type==='year').value;
+  document.getElementById('dagseting').textContent =
+    `${DAGAR[EN_D.indexOf(wd)]}, ${day}. ${EN_M[mon]} ${yr}`;
+}
+uppfDag();
+setInterval(uppfDag, 60000);
+
+// Canvas
+const canvas = document.getElementById('klukka');
+const ctx = canvas.getContext('2d');
+const CX = 430, CY = 430, R = 400;
+
+function teikna() {
+  const { h, m, s } = islenskurTimi();
+  const sek  = s;
+  const min  = m + sek / 60;
+  const klst = (h % 12) + min / 60;
+
+  ctx.clearRect(0, 0, 860, 860);
+
+  // Glow
+  const glow = ctx.createRadialGradient(CX, CY, R*0.5, CX, CY, R*1.08);
+  glow.addColorStop(0, 'rgba(0,180,140,0)');
+  glow.addColorStop(1, 'rgba(0,180,140,0.06)');
+  ctx.beginPath(); ctx.arc(CX, CY, R+14, 0, Math.PI*2);
+  ctx.fillStyle = glow; ctx.fill();
+
+  // Skífa
+  const disc = ctx.createRadialGradient(CX, CY-80, 60, CX, CY, R);
+  disc.addColorStop(0,   'rgba(22,44,76,1)');
+  disc.addColorStop(0.7, 'rgba(14,28,54,1)');
+  disc.addColorStop(1,   'rgba(8,18,36,1)');
+  ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI*2);
+  ctx.fillStyle = disc; ctx.fill();
+
+  // Ytri border
+  ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(200,230,255,0.18)'; ctx.lineWidth = 3; ctx.stroke();
+
+  // Tímamarkar
+  for (let i = 0; i < 60; i++) {
+    const ang = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const inner = isHour ? R - 42 : R - 20;
+    ctx.beginPath();
+    ctx.moveTo(CX + Math.cos(ang) * inner, CY + Math.sin(ang) * inner);
+    ctx.lineTo(CX + Math.cos(ang) * (R - 7), CY + Math.sin(ang) * (R - 7));
+    ctx.strokeStyle = isHour ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth   = isHour ? 4 : 2;
+    ctx.stroke();
+  }
+
+  // Tölur 1–12
+  ctx.font = 'bold 38px "DM Sans"';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 1; i <= 12; i++) {
+    const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    ctx.fillStyle = 'rgba(210,232,255,0.88)';
+    ctx.fillText(String(i),
+      CX + Math.cos(ang) * (R - 74),
+      CY + Math.sin(ang) * (R - 74));
+  }
+
+  // Mínútutölur (5,10,15...)
+  ctx.font = '19px "DM Sans"';
+  ctx.fillStyle = 'rgba(122,168,204,0.5)';
+  const minL = [5,10,15,20,25,30,35,40,45,50,55,60];
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    ctx.fillText(String(minL[i]),
+      CX + Math.cos(ang) * (R - 118),
+      CY + Math.sin(ang) * (R - 118));
+  }
+
+  // Visir-hjálparfall
+  function visir(ang, len, aftLen, width, color) {
+    ctx.save(); ctx.translate(CX, CY); ctx.rotate(ang);
+    // Rúnnaðar endar
+    ctx.beginPath();
+    ctx.moveTo(-width/2,  aftLen);
+    ctx.lineTo(-width/2, -len);
+    ctx.arcTo(0, -len - width*0.8, width/2, -len, width*0.8);
+    ctx.lineTo( width/2, -len);
+    ctx.lineTo( width/2,  aftLen);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Klukkustundarvisir
+  visir((klst/12)*Math.PI*2 - Math.PI/2, 210, 50, 16, '#f0c060');
+  // Mínútuvisir
+  visir((min/60)*Math.PI*2  - Math.PI/2, 330, 60, 10, '#e8f4ff');
+
+  // Sekúnduvisir
+  const sA = (sek/60)*Math.PI*2 - Math.PI/2;
+  ctx.save(); ctx.translate(CX, CY); ctx.rotate(sA);
+  ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(0, -355);
+  ctx.strokeStyle = '#00c8a0'; ctx.lineWidth = 3;
+  ctx.shadowColor = '#00c8a0'; ctx.shadowBlur = 12;
+  ctx.stroke(); ctx.shadowBlur = 0; ctx.restore();
+
+  // Miðpunktur
+  ctx.beginPath(); ctx.arc(CX, CY, 14, 0, Math.PI*2);
+  ctx.fillStyle = '#e8f4ff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(CX, CY, 8, 0, Math.PI*2);
+  ctx.fillStyle = '#00c8a0'; ctx.fill();
+}
+
+function lykkja() { teikna(); requestAnimationFrame(lykkja); }
+lykkja();
+</script>
+</body>
+</html>
